@@ -93,9 +93,13 @@ export default function ChatPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({});
+  const [hasMoreMessages, setHasMoreMessages] = useState<
+    Record<string, boolean>
+  >({});
   const [offsets, setOffsets] = useState<Record<string, number>>({});
-  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
+  const [messagesByChat, setMessagesByChat] = useState<
+    Record<string, ChatMessage[]>
+  >({});
   const [chats, setChats] = useState<ChatPreview[]>([]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -134,7 +138,7 @@ export default function ChatPage() {
         status: "read",
       };
     },
-    [currentUser]
+    [currentUser],
   );
 
   /* ---------------- Fetch Historical Messages ---------------- */
@@ -151,7 +155,7 @@ export default function ChatPage() {
 
       try {
         const res = await fetch(
-          `/api/messages?room_id=${roomId}&limit=${limit}&offset=${currentOffset}`
+          `/api/messages?room_id=${roomId}&limit=${limit}&offset=${currentOffset}`,
         );
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -167,8 +171,8 @@ export default function ChatPage() {
             : newMessages;
 
           const unique = combined.filter(
-            (msg, index, self) =>
-              index === self.findIndex((m) => m.id === msg.id)
+            (msg: ChatMessage, index: number, self: ChatMessage[]) =>
+              index === self.findIndex((m: ChatMessage) => m.id === msg.id),
           );
 
           return { ...prev, [roomId]: unique };
@@ -202,7 +206,7 @@ export default function ChatPage() {
         setIsLoadingMore(false);
       }
     },
-    [offsets, isLoadingMessages, isLoadingMore, transformToChatMessage]
+    [offsets, isLoadingMessages, isLoadingMore, transformToChatMessage],
   );
 
   /* ---------------- Auto Scroll ---------------- */
@@ -241,8 +245,7 @@ export default function ChatPage() {
       setReputationScore(calculateReputation(currentPublicKey));
     updateScore();
     window.addEventListener("reputationUpdate", updateScore);
-    return () =>
-      window.removeEventListener("reputationUpdate", updateScore);
+    return () => window.removeEventListener("reputationUpdate", updateScore);
   }, [currentPublicKey]);
 
   /* ---------------- Select Chat ---------------- */
@@ -283,24 +286,19 @@ export default function ChatPage() {
   };
 
   const selectedChat = selectedChatId
-    ? chats.find((c) => c.id === selectedChatId) ?? null
+    ? (chats.find((c) => c.id === selectedChatId) ?? null)
     : null;
 
-  const messages = selectedChat
-    ? messagesByChat[selectedChat.id] ?? []
-    : [];
+  const messages = selectedChat ? (messagesByChat[selectedChat.id] ?? []) : [];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
       <main className="flex-1 flex justify-center pt-24 pb-8">
         <div className="w-full max-w-6xl h-[min(82vh,760px)] bg-card border rounded-2xl shadow-lg flex overflow-hidden">
-          
           {/* Sidebar */}
           <aside className="w-[340px] border-r flex flex-col">
-            <div className="p-4 font-semibold text-sm border-b">
-              Messages
-            </div>
+            <div className="p-4 font-semibold text-sm border-b">Messages</div>
             <div className="flex-1 overflow-y-auto">
               {chats.map((chat) => (
                 <button
@@ -335,7 +333,7 @@ export default function ChatPage() {
                         "max-w-[70%] px-4 py-2 rounded-xl text-sm",
                         message.author === "me"
                           ? "ml-auto bg-primary/10"
-                          : "bg-card border"
+                          : "bg-card border",
                       )}
                     >
                       {message.text}

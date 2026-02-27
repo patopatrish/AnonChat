@@ -1,7 +1,7 @@
 import {
   FREIGHTER_ID,
   StellarWalletsKit,
-  RabetNetwork,
+  WalletNetwork,
   FreighterModule,
   AlbedoModule,
   RabetModule,
@@ -44,7 +44,7 @@ function getKit(): StellarWalletsKit | null {
         new LobstrModule(),
         new HanaModule(),
       ],
-      network: RabetNetwork.PUBLIC,
+      network: WalletNetwork.PUBLIC,
       selectedWalletId: getSelectedWalletId() ?? FREIGHTER_ID,
     });
   } catch (e) {
