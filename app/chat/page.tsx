@@ -53,6 +53,7 @@ interface DBMessage {
   user_id: string;
   content: string;
   created_at: string;
+  status?: "sent" | "delivered" | "read";
 }
 
 export default function ChatPage() {
@@ -86,7 +87,7 @@ export default function ChatPage() {
         minute: "2-digit",
         hour12: false,
       }),
-      status: "read",
+      status: message.status || "sent",
     }),
     [currentUser?.id],
   );
@@ -565,7 +566,8 @@ export default function ChatPage() {
                             <span>{message.time}</span>
                             {message.author === "me" && (
                               <span aria-label={`Delivery status: ${message.status}`}>
-                                {message.status === "sending" ? "..." : "✓✓"}
+                                {message.status === "sending" ? "..." : 
+                                 message.status === "sent" ? "✓" : "✓✓"}
                               </span>
                             )}
                           </div>
