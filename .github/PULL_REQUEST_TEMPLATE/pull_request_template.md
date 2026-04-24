@@ -1,8 +1,8 @@
-# 📌 Pull Request Summary
-
-<!-- Provide a short and clear description of what this PR does -->
+# 📌 Pull Request Requirements
 
 ## 📝 Description
+
+**Fork the repository and create a new branch using the issue number**
 
 - What does this PR do?
 - Why is this change necessary?
@@ -11,7 +11,7 @@
 
 ## 🔗 Related Issue
 
-<!-- Link the issue this PR resolves -->
+**Link the issue this PR resolves**
 
 Closes #<issue_number>
 
@@ -19,7 +19,7 @@ Closes #<issue_number>
 
 ## 🚀 Changes Made
 
-<!-- List all key changes -->
+**List all key changes**
 
 - [ ] Added PR template file under `.github/`
 - [ ] Structured PR description sections
@@ -31,7 +31,7 @@ Closes #<issue_number>
 
 ## 🧪 Testing & Validation
 
-<!-- Explain how you tested your changes -->
+**Explain how you tested your changes**
 
 - [ ] Tested locally
 - [ ] No breaking changes introduced
@@ -42,7 +42,7 @@ Closes #<issue_number>
 
 ## 📸 Screenshots (if applicable)
 
-<!-- Add screenshots if UI changes were made -->
+**Add screenshots if UI changes were made**
 
 | Before | After |
 | ------ | ----- |
@@ -52,7 +52,7 @@ Closes #<issue_number>
 
 ## 📋 Checklist
 
-<!-- Ensure all conditions are met before submitting -->
+**Ensure all conditions are met before submitting**
 
 - [ ] My code follows the project’s coding standards
 - [ ] I have tested my changes thoroughly
@@ -65,7 +65,7 @@ Closes #<issue_number>
 
 ## ⚠️ Notes for Reviewers
 
-<!-- Add anything reviewers should pay attention to -->
+**Add anything reviewers should pay attention to**
 
 - Key areas to review:
 - Any known limitations:
@@ -74,6 +74,6 @@ Closes #<issue_number>
 
 ## 💡 Additional Context
 
-<!-- Any extra info, decisions, or tradeoffs -->
+**Any extra info, decisions, or tradeoffs...**
 
 -
