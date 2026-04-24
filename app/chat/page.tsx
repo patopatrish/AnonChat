@@ -1,13 +1,23 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { ChatEmptyState } from "@/components/chat-empty-state";
-import { PresenceIndicator, type PresenceStatus } from "@/components/presence-indicator";
+import {
+  PresenceIndicator,
+  type PresenceStatus,
+} from "@/components/presence-indicator";
 import { RoomMembersDialog } from "@/components/room-members-dialog";
 import ConnectWallet from "@/components/wallet-connector";
 import { cn } from "@/lib/utils";
+import { handleAppError } from "@/lib/error-handler"; // Integrated Error Handler
 import {
   ArrowLeft,
   MessageSquare,
@@ -61,9 +71,9 @@ export default function ChatPage() {
   const [inputMessage, setInputMessage] = useState("");
   const [roomMembersOpen, setRoomMembersOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [activeMobileTab, setActiveMobileTab] = useState<"chats" | "conversation">(
-    "conversation",
-  );
+  const [activeMobileTab, setActiveMobileTab] = useState<
+    "chats" | "conversation"
+  >("conversation");
 
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
@@ -71,8 +81,12 @@ export default function ChatPage() {
   const [isSending, setIsSending] = useState(false);
 
   const [chats, setChats] = useState<ChatPreview[]>([]);
-  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
-  const [memberCountByRoom, setMemberCountByRoom] = useState<Record<string, number>>({});
+  const [messagesByChat, setMessagesByChat] = useState<
+    Record<string, ChatMessage[]>
+  >({});
+  const [memberCountByRoom, setMemberCountByRoom] = useState<
+    Record<string, number>
+  >({});
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -163,7 +177,9 @@ export default function ChatPage() {
       );
 
       setChats(previews);
-      setSelectedChatId((currentSelected) => currentSelected || previews[0]?.id || null);
+      setSelectedChatId(
+        (currentSelected) => currentSelected || previews[0]?.id || null,
+      );
     } catch (error) {
       console.error("Failed to fetch rooms", error);
       setChats([]);
@@ -207,7 +223,9 @@ export default function ChatPage() {
 
   const fetchMemberCount = useCallback(async (roomId: string) => {
     try {
-      const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/members`);
+      const response = await fetch(
+        `/api/rooms/${encodeURIComponent(roomId)}/members`,
+      );
       if (!response.ok) {
         return;
       }
@@ -219,7 +237,7 @@ export default function ChatPage() {
         [roomId]: count,
       }));
     } catch {
-      // Member count is optional metadata in the UI.
+      // Member count is optional metadata
     }
   }, []);
 
@@ -229,9 +247,7 @@ export default function ChatPage() {
   }, [fetchCurrentUser, fetchRooms]);
 
   useEffect(() => {
-    if (!selectedChatId) {
-      return;
-    }
+    if (!selectedChatId) return;
 
     if (!messagesByChat[selectedChatId]) {
       fetchMessagesForRoom(selectedChatId);
@@ -261,11 +277,16 @@ export default function ChatPage() {
     setActiveMobileTab("conversation");
   }, []);
 
-  const isMobileSidebarVisible = mobileSidebarOpen || activeMobileTab === "chats";
+  const isMobileSidebarVisible =
+    mobileSidebarOpen || activeMobileTab === "chats";
 
   const handleSendMessage = useCallback(async () => {
     const trimmedMessage = inputMessage.trim();
-    if (!trimmedMessage || !selectedChatId) {
+    if (!trimmedMessage || !selectedChatId) return;
+
+    // Check for offline status immediately
+    if (!window.navigator.onLine) {
+      handleAppError(new Error("network"), "NETWORK");
       return;
     }
 
@@ -292,14 +313,13 @@ export default function ChatPage() {
     try {
       const response = await fetch("/api/messages", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           room_id: selectedChatId,
           content: trimmedMessage,
         }),
       });
+
       const data = await response.json();
 
       if (!response.ok || data.error) {
@@ -308,15 +328,12 @@ export default function ChatPage() {
 
       const savedMessage: ChatMessage = data.message
         ? transformToChatMessage(data.message)
-        : {
-            ...optimisticMessage,
-            status: "sent",
-          };
+        : { ...optimisticMessage, status: "sent" };
 
       setMessagesByChat((prev) => ({
         ...prev,
-        [selectedChatId]: (prev[selectedChatId] || []).map((message) =>
-          message.id === tempId ? savedMessage : message,
+        [selectedChatId]: (prev[selectedChatId] || []).map((msg) =>
+          msg.id === tempId ? savedMessage : msg,
         ),
       }));
 
@@ -332,12 +349,15 @@ export default function ChatPage() {
             : chat,
         ),
       );
-    } catch (error) {
-      console.error("Failed to send message", error);
+    } catch (error: any) {
+      // Trigger Toast Notification
+      handleAppError(error, "SEND_MESSAGE");
+
+      // Revert optimistic update
       setMessagesByChat((prev) => ({
         ...prev,
         [selectedChatId]: (prev[selectedChatId] || []).filter(
-          (message) => message.id !== tempId,
+          (msg) => msg.id !== tempId,
         ),
       }));
     } finally {
@@ -356,10 +376,7 @@ export default function ChatPage() {
   );
 
   const filteredChats = useMemo(() => {
-    if (!query.trim()) {
-      return chats;
-    }
-
+    if (!query.trim()) return chats;
     const lowered = query.toLowerCase();
     return chats.filter(
       (chat) =>
@@ -373,7 +390,7 @@ export default function ChatPage() {
     [chats, selectedChatId],
   );
 
-  const messages = selectedChat ? (messagesByChat[selectedChat.id] || []) : [];
+  const messages = selectedChat ? messagesByChat[selectedChat.id] || [] : [];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -388,7 +405,6 @@ export default function ChatPage() {
                 "transition-transform duration-300 ease-out md:translate-x-0",
                 isMobileSidebarVisible ? "translate-x-0" : "-translate-x-full",
               )}
-              aria-label="Group sidebar"
             >
               <div className="h-full flex flex-col">
                 <div className="p-4 border-b border-border/70 space-y-3">
@@ -418,13 +434,14 @@ export default function ChatPage() {
                   )}
 
                   {!isLoadingRooms && filteredChats.length === 0 && (
-                    <div className="p-4 text-sm text-muted-foreground">No groups found.</div>
+                    <div className="p-4 text-sm text-muted-foreground">
+                      No groups found.
+                    </div>
                   )}
 
                   {!isLoadingRooms &&
                     filteredChats.map((chat) => {
                       const isActive = chat.id === selectedChatId;
-
                       return (
                         <button
                           key={chat.id}
@@ -440,7 +457,9 @@ export default function ChatPage() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <PresenceIndicator status={chat.status} />
-                                <p className="font-medium text-sm truncate">{chat.name}</p>
+                                <p className="font-medium text-sm truncate">
+                                  {chat.name}
+                                </p>
                               </div>
                               <p className="text-xs text-muted-foreground truncate mt-1">
                                 {chat.lastMessage}
@@ -448,7 +467,9 @@ export default function ChatPage() {
                             </div>
 
                             <div className="shrink-0 text-right">
-                              <p className="text-[11px] text-muted-foreground">{chat.lastSeen}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {chat.lastSeen}
+                              </p>
                               {chat.unreadCount > 0 && (
                                 <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold mt-1 px-1.5">
                                   {chat.unreadCount}
@@ -466,7 +487,6 @@ export default function ChatPage() {
             {mobileSidebarOpen && (
               <button
                 type="button"
-                aria-label="Close group sidebar"
                 className="md:hidden absolute inset-0 z-10 bg-black/30"
                 onClick={() => setMobileSidebarOpen(false)}
               />
@@ -489,7 +509,6 @@ export default function ChatPage() {
                           type="button"
                           className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border/80"
                           onClick={() => setMobileSidebarOpen(true)}
-                          aria-label="Open groups"
                         >
                           <Menu className="h-4 w-4" />
                         </button>
@@ -498,13 +517,14 @@ export default function ChatPage() {
                           type="button"
                           className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border/80"
                           onClick={() => setSelectedChatId(null)}
-                          aria-label="Back to empty state"
                         >
                           <ArrowLeft className="h-4 w-4" />
                         </button>
 
                         <div className="min-w-0">
-                          <p className="font-semibold truncate">{selectedChat.name}</p>
+                          <p className="font-semibold truncate">
+                            {selectedChat.name}
+                          </p>
                           <p className="text-xs text-muted-foreground truncate">
                             {memberCountByRoom[selectedChat.id] !== undefined
                               ? `${memberCountByRoom[selectedChat.id]} members`
@@ -546,14 +566,15 @@ export default function ChatPage() {
                         <div
                           key={message.id}
                           className={cn(
-                            "max-w-[85%] sm:max-w-[72%] rounded-2xl px-4 py-2.5",
-                            "text-sm shadow-sm",
+                            "max-w-[85%] sm:max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm text-sm",
                             message.author === "me"
                               ? "ml-auto bg-primary text-primary-foreground rounded-br-sm"
                               : "mr-auto bg-card border border-border/70 rounded-bl-sm",
                           )}
                         >
-                          <p className="whitespace-pre-wrap break-words leading-relaxed">{message.text}</p>
+                          <p className="whitespace-pre-wrap break-words leading-relaxed">
+                            {message.text}
+                          </p>
                           <div
                             className={cn(
                               "mt-1 flex items-center justify-end gap-1 text-[10px]",
@@ -564,7 +585,7 @@ export default function ChatPage() {
                           >
                             <span>{message.time}</span>
                             {message.author === "me" && (
-                              <span aria-label={`Delivery status: ${message.status}`}>
+                              <span>
                                 {message.status === "sending" ? "..." : "✓✓"}
                               </span>
                             )}
@@ -577,23 +598,22 @@ export default function ChatPage() {
                     <div className="flex items-end gap-2 sm:gap-3">
                       <button
                         type="button"
-                        aria-label="Insert emoji"
-                        className="h-10 w-10 shrink-0 rounded-full border border-border/80 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                        className="h-10 w-10 shrink-0 rounded-full border border-border/80 flex items-center justify-center text-muted-foreground hover:bg-muted/40"
                       >
                         <Smile className="h-4 w-4" />
                       </button>
-
                       <button
                         type="button"
-                        aria-label="Attach file"
-                        className="h-10 w-10 shrink-0 rounded-full border border-border/80 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                        className="h-10 w-10 shrink-0 rounded-full border border-border/80 flex items-center justify-center text-muted-foreground hover:bg-muted/40"
                       >
                         <Paperclip className="h-4 w-4" />
                       </button>
 
                       <textarea
                         value={inputMessage}
-                        onChange={(event) => setInputMessage(event.target.value)}
+                        onChange={(event) =>
+                          setInputMessage(event.target.value)
+                        }
                         onKeyDown={handleComposerKeyDown}
                         rows={1}
                         placeholder="Type a message"
@@ -604,7 +624,6 @@ export default function ChatPage() {
                         type="button"
                         onClick={() => void handleSendMessage()}
                         disabled={!inputMessage.trim() || isSending}
-                        aria-label="Send message"
                         className="h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50"
                       >
                         {isSending ? (
@@ -627,16 +646,10 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <nav
-          aria-label="Mobile navigation"
-          className="md:hidden fixed inset-x-3 bottom-3 z-30 rounded-2xl border border-border/70 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 shadow-lg"
-          style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
-        >
+        <nav className="md:hidden fixed inset-x-3 bottom-3 z-30 rounded-2xl border border-border/70 bg-card/95 backdrop-blur shadow-lg pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="grid grid-cols-2 gap-1 p-1.5">
             <button
               type="button"
-              aria-label="Show groups"
-              aria-pressed={activeMobileTab === "chats"}
               onClick={() => {
                 setActiveMobileTab("chats");
                 setMobileSidebarOpen(false);
@@ -645,16 +658,13 @@ export default function ChatPage() {
                 "min-h-12 rounded-xl inline-flex items-center justify-center gap-2 text-sm font-medium transition-colors",
                 activeMobileTab === "chats"
                   ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                  : "text-muted-foreground hover:bg-muted/40",
               )}
             >
-              <PanelLeft className="h-4 w-4" />
-              Groups
+              <PanelLeft className="h-4 w-4" /> Groups
             </button>
             <button
               type="button"
-              aria-label="Show conversation"
-              aria-pressed={activeMobileTab === "conversation"}
               onClick={() => {
                 setActiveMobileTab("conversation");
                 setMobileSidebarOpen(false);
@@ -663,16 +673,14 @@ export default function ChatPage() {
                 "min-h-12 rounded-xl inline-flex items-center justify-center gap-2 text-sm font-medium transition-colors",
                 activeMobileTab === "conversation"
                   ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                  : "text-muted-foreground hover:bg-muted/40",
               )}
             >
-              <MessageSquare className="h-4 w-4" />
-              Chat
+              <MessageSquare className="h-4 w-4" /> Chat
             </button>
           </div>
         </nav>
       </main>
-
       <Footer />
     </div>
   );
