@@ -123,9 +123,24 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 Add Stellar-specific configuration to `.env.local`:
 
 ```env
-# Stellar Configuration (if needed)
+# Stellar Configuration
 NEXT_PUBLIC_STELLAR_NETWORK=testnet  # Use 'testnet' for development, 'public' for production
+
+# Stellar Blockchain Integration (for on-chain group metadata)
+STELLAR_NETWORK=testnet
+STELLAR_SOURCE_SECRET=S...  # Your Stellar testnet account secret key
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_TRANSACTION_TIMEOUT=30000  # Optional: Transaction timeout in milliseconds (default: 30000)
 ```
+
+#### Getting a Stellar Testnet Account:
+
+1. Go to [Stellar Laboratory](https://laboratory.stellar.org/#account-creator?network=test)
+2. Click **Generate keypair** to create a new account
+3. Copy the **Secret Key** (starts with 'S') → `STELLAR_SOURCE_SECRET`
+4. Copy the **Public Key** (starts with 'G')
+5. Click **Fund account with Friendbot** to get testnet XLM
+6. Verify your account has funds on [Stellar Expert](https://stellar.expert/explorer/testnet)
 
 ### 4. Verify Environment Setup
 
@@ -146,6 +161,7 @@ The database schema is managed through Supabase migrations. SQL migration files 
 
 - `001_create_profiles.sql` - Creates user profiles table
 - `002_create_profile_trigger.sql` - Creates database trigger for profile creation
+- `003_room_members_and_removal_votes.sql` - Room membership and wallet-based removal voting
 
 ### 2. Execute Migrations
 
@@ -156,7 +172,7 @@ The database schema is managed through Supabase migrations. SQL migration files 
 3. Click **New Query**
 4. Copy and paste the contents of `scripts/001_create_profiles.sql`
 5. Click **Run**
-6. Repeat for `scripts/002_create_profile_trigger.sql`
+6. Repeat for `scripts/002_create_profile_trigger.sql` and `scripts/003_room_members_and_removal_votes.sql`
 
 #### Option B: Using Supabase CLI (Advanced)
 

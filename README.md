@@ -173,10 +173,28 @@ cp .env.example .env.local
 # 3. Run database migrations in Supabase SQL Editor
 # scripts/001_create_profiles.sql
 # scripts/002_create_profile_trigger.sql
+# scripts/003_room_members_and_removal_votes.sql  (for wallet-based removal voting)
 
 # 4. Start dev server
 pnpm dev
 ```
+
+### Testing wallet-based removal voting
+
+**Full runbook:** See [docs/RUN-VOTE-REMOVE.md](docs/RUN-VOTE-REMOVE.md) for step-by-step run and verify instructions.
+
+1. **Apply the migration**  
+   Run `scripts/003_room_members_and_removal_votes.sql` in the Supabase SQL Editor so `room_members`, `room_removal_votes`, and `check_removal_threshold` exist.
+
+2. **API smoke test** (Node ≥18, dev server on Node ≥20):  
+   With the dev server running (`pnpm dev`), in another terminal:
+   ```bash
+   pnpm run test:vote-remove
+   ```
+   This checks that unauthenticated requests get 401 and invalid requests get 400.
+
+3. **Manual UI test**  
+   Open `/chat`, select a room, click the ⋮ (More) button in the header. The “Room members & voting” dialog should open; without auth you’ll see “No members yet, or you need to sign in.” After signing in and joining a room (e.g. by sending a message), you can vote to remove another member; when a majority votes, they are removed and can no longer send messages in that room.
 
 ### Environment Variables
 

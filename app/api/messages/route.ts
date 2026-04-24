@@ -14,6 +14,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "room_id is required" }, { status: 400 })
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized. You must be logged in to view messages." }, { status: 401 })
+    }
+
+    // Verify user is a member of this room
+    const { data: membership, error: memberErr } = await supabase
+      .from("room_members")
+      .select("id, removed_at")
+      .eq("room_id", roomId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    if (memberErr) throw memberErr
+
+    if (!membership) {
+      return NextResponse.json({ error: "Forbidden. You are not a member of this room." }, { status: 403 })
+    }
+
+    if (membership.removed_at) {
+      return NextResponse.json({ error: "Forbidden. You have been removed from this room." }, { status: 403 })
+    }
+
     const { data, error } = await supabase
       .from("messages")
       .select("*, profiles(display_name, avatar_url)")
@@ -46,6 +72,30 @@ export async function POST(request: NextRequest) {
 
     if (!room_id || !content) {
       return NextResponse.json({ error: "room_id and content are required" }, { status: 400 })
+    }
+
+    const { data: membership, error: memberErr } = await supabase
+      .from("room_members")
+      .select("id, removed_at")
+      .eq("room_id", room_id)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    if (memberErr) throw memberErr
+
+    if (membership?.removed_at) {
+      return NextResponse.json(
+        { error: "You have been removed from this room and cannot send messages" },
+        { status: 403 }
+      )
+    }
+
+    if (!membership) {
+      const { error: insertMemberErr } = await supabase.from("room_members").insert({
+        room_id,
+        user_id: user.id,
+      })
+      if (insertMemberErr) throw insertMemberErr
     }
 
     const { data, error } = await supabase

@@ -1,508 +1,679 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import Image from "next/image"
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
-import { PresenceIndicator, type PresenceStatus } from "@/components/presence-indicator"
-import ConnectWallet from "@/components/wallet-connector"
-import { cn } from "@/lib/utils"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Header } from "@/components/header";
+import { Footer } from "@/components/footer";
+import { ChatEmptyState } from "@/components/chat-empty-state";
+import { PresenceIndicator, type PresenceStatus } from "@/components/presence-indicator";
+import { RoomMembersDialog } from "@/components/room-members-dialog";
+import ConnectWallet from "@/components/wallet-connector";
+import { cn } from "@/lib/utils";
 import {
+  ArrowLeft,
+  MessageSquare,
+  Loader2,
+  Menu,
+  Paperclip,
+  PanelLeft,
   Search,
-  MessageCircle,
-  Send,
-  Check,
-  CheckCheck,
-  Clock,
-  Wallet,
-  Share2,
-  Phone,
-  Video,
-  MoreVertical,
-} from "lucide-react"
+  SendHorizontal,
+  Smile,
+  Users,
+} from "lucide-react";
 
 type ChatPreview = {
-  id: string
-  name: string
-  address: string
-  lastMessage: string
-  lastSeen: string
-  unreadCount: number
-  status: PresenceStatus
-}
+  id: string;
+  name: string;
+  address: string;
+  lastMessage: string;
+  lastSeen: string;
+  unreadCount: number;
+  status: PresenceStatus;
+};
 
 type ChatMessage = {
-  id: string
-  author: "me" | "them"
-  text: string
-  time: string
-  delivered: boolean
-  read: boolean
-  status?: "sending" | "sent" | "delivered" | "read"
+  id: string;
+  author: "me" | "them";
+  text: string;
+  time: string;
+  status: "sending" | "sent" | "delivered" | "read";
+};
+
+interface DBRoom {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  address?: string;
+  unread_count?: number;
+}
+
+interface DBMessage {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
 }
 
 export default function ChatPage() {
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState("");
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [inputMessage, setInputMessage] = useState("");
+  const [roomMembersOpen, setRoomMembersOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<"chats" | "conversation">(
+    "conversation",
+  );
 
-  // TODO: Replace with real wallet state once wired
-  const [walletConnected, setWalletConnected] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
-  // Detect wallet connection heuristically from DOM changes of ConnectWallet
-  useEffect(() => {
-    const el = document.getElementById("connect-wrap")
-    if (!el) return
+  const [chats, setChats] = useState<ChatPreview[]>([]);
+  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
+  const [memberCountByRoom, setMemberCountByRoom] = useState<Record<string, number>>({});
 
-    const observer = new MutationObserver(() => {
-      const hasAddress = el.textContent && el.textContent.includes("...")
-      setWalletConnected(Boolean(hasAddress))
-    })
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    observer.observe(el, { childList: true, subtree: true, characterData: true })
-    return () => observer.disconnect()
-  }, [])
-
-  const chats: ChatPreview[] = useMemo(
-    () => [
-      {
-        id: "1",
-        name: "Anon Whisper",
-        address: "GABC...1234",
-        lastMessage: "Got your message, will reply soon.",
-        lastSeen: "Today • 14:32",
-        unreadCount: 2,
-        status: "online",
-      },
-      {
-        id: "2",
-        name: "Room #xf23",
-        address: "GCDE...5678",
-        lastMessage: "Pinned the latest proposal for review.",
-        lastSeen: "Today • 09:10",
-        unreadCount: 0,
-        status: "recently_active",
-      },
-      {
-        id: "3",
-        name: "Collector",
-        address: "GHJK...9012",
-        lastMessage: "Let’s sync tomorrow.",
-        lastSeen: "Yesterday • 18:04",
-        unreadCount: 0,
-        status: "offline",
-      },
-    ],
-    [],
-  )
-
-  const messagesByChat: Record<string, ChatMessage[]> = useMemo(
-    () => ({
-      "1": [
-        {
-          id: "m1",
-          author: "them",
-          text: "Hey, welcome to AnonChat 👋",
-          time: "14:20",
-          delivered: true,
-          read: true,
-        },
-        {
-          id: "m2",
-          author: "me",
-          text: "Love how clean this feels on desktop.",
-          time: "14:22",
-          delivered: false,
-          read: false,
-          status: "sending",
-        },
-        {
-          id: "m2b",
-          author: "me",
-          text: "Just sent another update.",
-          time: "14:23",
-          delivered: false,
-          read: false,
-          status: "sent",
-        },
-        {
-          id: "m2c",
-          author: "me",
-          text: "Let me know once it lands.",
-          time: "14:24",
-          delivered: true,
-          read: false,
-          status: "delivered",
-        },
-        {
-          id: "m2d",
-          author: "me",
-          text: "Seen it?",
-          time: "14:24",
-          delivered: true,
-          read: true,
-          status: "read",
-        },
-        {
-          id: "m3",
-          author: "them",
-          text: "Messages stay end‑to‑end encrypted here.",
-          time: "14:25",
-          delivered: true,
-          read: false,
-        },
-      ],
-      "2": [
-        {
-          id: "m4",
-          author: "them",
-          text: "New governance draft is live.",
-          time: "09:02",
-          delivered: true,
-          read: true,
-        },
-      ],
-      "3": [
-        {
-          id: "m5",
-          author: "me",
-          text: "Let’s catch up on the drop.",
-          time: "17:40",
-          delivered: true,
-          read: true,
-        },
-      ],
+  const transformToChatMessage = useCallback(
+    (message: DBMessage): ChatMessage => ({
+      id: message.id,
+      author: message.user_id === currentUser?.id ? "me" : "them",
+      text: message.content,
+      time: new Date(message.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      status: "read",
     }),
-    [],
-  )
+    [currentUser?.id],
+  );
 
-  const getDeliveryStatus = (message: ChatMessage) => {
-    if (message.status) return message.status
-    if (message.read) return "read"
-    if (message.delivered) return "delivered"
-    return "sent"
-  }
+  const fetchCurrentUser = useCallback(async () => {
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    setCurrentUser(user ? { id: user.id } : null);
+  }, []);
+
+  const fetchRoomLastMessagePreview = useCallback(async (roomId: string) => {
+    try {
+      const response = await fetch(
+        `/api/messages?room_id=${encodeURIComponent(roomId)}&limit=1&offset=0`,
+      );
+      if (!response.ok) {
+        return {
+          lastMessage: "No messages yet",
+          lastSeen: "",
+        };
+      }
+
+      const data = await response.json();
+      const latest: DBMessage | undefined = data.messages?.[0];
+      if (!latest) {
+        return {
+          lastMessage: "No messages yet",
+          lastSeen: "",
+        };
+      }
+
+      return {
+        lastMessage: latest.content,
+        lastSeen: new Date(latest.created_at).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+      };
+    } catch {
+      return {
+        lastMessage: "No messages yet",
+        lastSeen: "",
+      };
+    }
+  }, []);
+
+  const fetchRooms = useCallback(async () => {
+    setIsLoadingRooms(true);
+    try {
+      const response = await fetch("/api/rooms");
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Failed to fetch rooms");
+      }
+
+      const rawRooms: DBRoom[] = data.rooms || [];
+      const previews = await Promise.all(
+        rawRooms.map(async (room) => {
+          const preview = await fetchRoomLastMessagePreview(room.id);
+          return {
+            id: room.id,
+            name: room.name,
+            address: room.address || room.id,
+            unreadCount: room.unread_count || 0,
+            status: (room.unread_count || 0) > 0 ? "online" : "recently_active",
+            lastMessage: preview.lastMessage,
+            lastSeen: preview.lastSeen,
+          } satisfies ChatPreview;
+        }),
+      );
+
+      setChats(previews);
+      setSelectedChatId((currentSelected) => currentSelected || previews[0]?.id || null);
+    } catch (error) {
+      console.error("Failed to fetch rooms", error);
+      setChats([]);
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  }, [fetchRoomLastMessagePreview]);
+
+  const fetchMessagesForRoom = useCallback(
+    async (roomId: string) => {
+      setIsLoadingMessages(true);
+      try {
+        const response = await fetch(
+          `/api/messages?room_id=${encodeURIComponent(roomId)}&limit=100&offset=0`,
+        );
+        const data = await response.json();
+        if (!response.ok || data.error) {
+          throw new Error(data.error || "Failed to fetch messages");
+        }
+
+        const parsed = (data.messages || [])
+          .map(transformToChatMessage)
+          .reverse();
+
+        setMessagesByChat((prev) => ({
+          ...prev,
+          [roomId]: parsed,
+        }));
+      } catch (error) {
+        console.error("Failed to fetch messages", error);
+        setMessagesByChat((prev) => ({
+          ...prev,
+          [roomId]: [],
+        }));
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    },
+    [transformToChatMessage],
+  );
+
+  const fetchMemberCount = useCallback(async (roomId: string) => {
+    try {
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/members`);
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const count = Array.isArray(data.members) ? data.members.length : 0;
+      setMemberCountByRoom((prev) => ({
+        ...prev,
+        [roomId]: count,
+      }));
+    } catch {
+      // Member count is optional metadata in the UI.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentUser();
+    fetchRooms();
+  }, [fetchCurrentUser, fetchRooms]);
+
+  useEffect(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (!messagesByChat[selectedChatId]) {
+      fetchMessagesForRoom(selectedChatId);
+    }
+
+    if (memberCountByRoom[selectedChatId] === undefined) {
+      fetchMemberCount(selectedChatId);
+    }
+  }, [
+    selectedChatId,
+    messagesByChat,
+    memberCountByRoom,
+    fetchMessagesForRoom,
+    fetchMemberCount,
+  ]);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [selectedChatId, messagesByChat]);
+
+  const handleSelectChat = useCallback((chatId: string) => {
+    setSelectedChatId(chatId);
+    setMobileSidebarOpen(false);
+    setActiveMobileTab("conversation");
+  }, []);
+
+  const isMobileSidebarVisible = mobileSidebarOpen || activeMobileTab === "chats";
+
+  const handleSendMessage = useCallback(async () => {
+    const trimmedMessage = inputMessage.trim();
+    if (!trimmedMessage || !selectedChatId) {
+      return;
+    }
+
+    const tempId = `temp_${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      author: "me",
+      text: trimmedMessage,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      status: "sending",
+    };
+
+    setMessagesByChat((prev) => ({
+      ...prev,
+      [selectedChatId]: [...(prev[selectedChatId] || []), optimisticMessage],
+    }));
+    setInputMessage("");
+    setIsSending(true);
+
+    try {
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          room_id: selectedChatId,
+          content: trimmedMessage,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Failed to send message");
+      }
+
+      const savedMessage: ChatMessage = data.message
+        ? transformToChatMessage(data.message)
+        : {
+            ...optimisticMessage,
+            status: "sent",
+          };
+
+      setMessagesByChat((prev) => ({
+        ...prev,
+        [selectedChatId]: (prev[selectedChatId] || []).map((message) =>
+          message.id === tempId ? savedMessage : message,
+        ),
+      }));
+
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === selectedChatId
+            ? {
+                ...chat,
+                lastMessage: trimmedMessage,
+                lastSeen: savedMessage.time,
+                unreadCount: 0,
+              }
+            : chat,
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to send message", error);
+      setMessagesByChat((prev) => ({
+        ...prev,
+        [selectedChatId]: (prev[selectedChatId] || []).filter(
+          (message) => message.id !== tempId,
+        ),
+      }));
+    } finally {
+      setIsSending(false);
+    }
+  }, [inputMessage, selectedChatId, transformToChatMessage]);
+
+  const handleComposerKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void handleSendMessage();
+      }
+    },
+    [handleSendMessage],
+  );
 
   const filteredChats = useMemo(() => {
-    if (!query.trim()) return chats
-    const q = query.toLowerCase()
+    if (!query.trim()) {
+      return chats;
+    }
+
+    const lowered = query.toLowerCase();
     return chats.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.address.toLowerCase().includes(q),
-    )
-  }, [chats, query])
+      (chat) =>
+        chat.name.toLowerCase().includes(lowered) ||
+        chat.lastMessage.toLowerCase().includes(lowered),
+    );
+  }, [chats, query]);
 
-  const selectedChat = selectedChatId
-    ? chats.find((c) => c.id === selectedChatId) ?? null
-    : null
+  const selectedChat = useMemo(
+    () => chats.find((chat) => chat.id === selectedChatId) || null,
+    [chats, selectedChatId],
+  );
 
-  const messages = selectedChat ? messagesByChat[selectedChat.id] ?? [] : []
+  const messages = selectedChat ? (messagesByChat[selectedChat.id] || []) : [];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
 
-      <main className="flex-1 pt-24 pb-8 px-2 sm:px-4 lg:px-8 flex justify-center">
-        <div className="w-full max-w-6xl h-[min(82vh,760px)] bg-[#050509] border border-border/60 rounded-2xl shadow-lg overflow-hidden flex">
-          {/* Sidebar */}
-          <aside className="w-[340px] border-r border-border/60 bg-[#0a0a10] flex flex-col">
-            {/* Sidebar header */}
-            <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between gap-3 bg-[#0f0f16]">
-              <div className="flex items-center gap-2">
-                <div className="relative h-8 w-8 rounded-xl overflow-hidden bg-primary/10 flex items-center justify-center">
-                  <Image
-                    src="/anonchat-logo2.webp"
-                    alt="AnonChat logo"
-                    fill
-                    sizes="32px"
-                    className="object-contain"
-                  />
-                </div>
-                <div className="leading-tight">
-                  <div className="text-sm font-semibold tracking-tight">
-                    AnonChat
+      <main className="flex-1 pt-24 pb-24 md:pb-8 px-3 sm:px-6">
+        <div className="mx-auto w-full max-w-7xl h-[min(84vh,820px)] rounded-3xl border border-border/70 bg-card/90 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.35)] backdrop-blur-sm overflow-hidden">
+          <div className="h-full flex relative">
+            <aside
+              className={cn(
+                "absolute inset-y-0 left-0 z-20 w-full border-r border-border/70 bg-card md:static md:w-[340px] md:max-w-none",
+                "transition-transform duration-300 ease-out md:translate-x-0",
+                isMobileSidebarVisible ? "translate-x-0" : "-translate-x-full",
+              )}
+              aria-label="Group sidebar"
+            >
+              <div className="h-full flex flex-col">
+                <div className="p-4 border-b border-border/70 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-base font-semibold">Groups</h2>
+                    <div className="shrink-0">
+                      <ConnectWallet />
+                    </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    End‑to‑end encrypted
-                  </div>
-                </div>
-              </div>
-              <button className="inline-flex items-center justify-center rounded-full border border-primary/60 px-3 py-1.5 text-[11px] font-medium bg-primary/20 text-primary hover:bg-primary/30 transition">
-                Create / Join room
-              </button>
-            </div>
 
-            {/* Wallet + share row (shows when wallet connected) */}
-            {walletConnected && (
-              <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between bg-[#12121a] gap-3">
-                <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                  <div className="h-7 w-7 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
-                    <Wallet className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground/70">
-                      Connected
-                    </span>
-                    <span className="text-[11px] font-mono text-foreground">
-                      0×7a3...f2c1
-                    </span>
+                  <div className="relative">
+                    <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Search groups or messages"
+                      className="w-full rounded-xl border border-border/80 bg-background/70 pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                    />
                   </div>
                 </div>
-                <button className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1.5 rounded-md bg-[#1b1b24] hover:bg-[#232330] transition border border-border/60">
-                  <Share2 className="h-3 w-3" />
-                  <span>Share</span>
-                </button>
-              </div>
-            )}
 
-            {/* Search + chats header */}
-            <div className="px-4 pt-3 pb-2 space-y-2 border-b border-border/60 bg-[#11111a]">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span className="font-semibold tracking-wide uppercase text-foreground">
-                  Messages
-                </span>
-                <MessageCircle className="h-4 w-4" />
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search ENS or Wallet"
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#181822] text-sm border border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/60 placeholder:text-muted-foreground/70 transition"
-                />
-              </div>
-            </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                  {isLoadingRooms && (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  )}
 
-            {/* Chat list */}
-            <div className="flex-1 overflow-y-auto">
-              {filteredChats.length === 0 ? (
-                <div className="h-full flex items-center justify-center px-6 text-xs text-muted-foreground text-center">
-                  No rooms match this search. Try a different room name or
-                  wallet address.
-                </div>
-              ) : (
-                <ul className="py-1">
-                  {filteredChats.map((chat) => {
-                    const isSelected = chat.id === selectedChatId
-                    return (
-                      <li key={chat.id}>
+                  {!isLoadingRooms && filteredChats.length === 0 && (
+                    <div className="p-4 text-sm text-muted-foreground">No groups found.</div>
+                  )}
+
+                  {!isLoadingRooms &&
+                    filteredChats.map((chat) => {
+                      const isActive = chat.id === selectedChatId;
+
+                      return (
                         <button
-                          onClick={() => setSelectedChatId(chat.id)}
+                          key={chat.id}
+                          type="button"
+                          onClick={() => handleSelectChat(chat.id)}
                           className={cn(
-                            "w-full px-3.5 py-2.5 flex gap-3 items-center text-left hover:bg-[#181824] transition",
-                            isSelected &&
-                              "bg-[#19192a] border-l-2 border-primary/80 shadow-[0_0_0_1px_rgba(168,85,247,0.4)]",
+                            "w-full text-left p-3 rounded-xl transition mb-1",
+                            "border border-transparent hover:bg-muted/40",
+                            isActive && "bg-primary/10 border-primary/25",
                           )}
                         >
-                          <div className="relative">
-                            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xs font-semibold text-white shadow-md">
-                              {chat.name.charAt(0).toUpperCase()}
-                            </div>
-                            <PresenceIndicator
-                              status={chat.status}
-                              className="absolute -bottom-0.5 -right-0.5 scale-90"
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-medium truncate">
-                                {chat.name}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                {chat.lastSeen}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 mt-0.5">
-                              <p className="text-xs text-muted-foreground truncate">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <PresenceIndicator status={chat.status} />
+                                <p className="font-medium text-sm truncate">{chat.name}</p>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate mt-1">
                                 {chat.lastMessage}
                               </p>
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <p className="text-[11px] text-muted-foreground">{chat.lastSeen}</p>
                               {chat.unreadCount > 0 && (
-                                <span className="ml-2 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] min-w-[18px] h-[18px] px-1">
+                                <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold mt-1 px-1.5">
                                   {chat.unreadCount}
                                 </span>
                               )}
                             </div>
                           </div>
                         </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
-
-            {/* Hidden wallet connector just to mirror status into chat UI */}
-            <div className="px-4 py-2 border-t border-border/60 bg-[#0f0f16] text-[11px] text-muted-foreground flex items-center justify-between gap-2">
-              <span className="truncate">
-                Wallet status for this device:
-              </span>
-              <ConnectWallet />
-            </div>
-          </aside>
-
-          {/* Main chat area */}
-          <section className="flex-1 flex flex-col bg-[#050509]">
-            {/* Empty state when no chat selected */}
-            {!selectedChat && (
-              <div className="flex flex-1 flex-col items-center justify-center text-center px-8 gap-4">
-                <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 text-primary border border-primary/20">
-                  <MessageCircle className="h-8 w-8" />
+                      );
+                    })}
                 </div>
-                <div className="space-y-1 max-w-md">
-                  <h2 className="text-xl font-semibold tracking-tight">
-                    Open a chat to get started
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Just like WhatsApp on desktop, your conversations appear
-                    here once you pick a room from the left. Everything stays
-                    end‑to‑end encrypted.
-                  </p>
-                </div>
-                <button className="mt-2 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium bg-background hover:bg-muted/60 transition">
-                  <MessageCircle className="h-4 w-4" />
-                  Create or join a room
-                </button>
               </div>
+            </aside>
+
+            {mobileSidebarOpen && (
+              <button
+                type="button"
+                aria-label="Close group sidebar"
+                className="md:hidden absolute inset-0 z-10 bg-black/30"
+                onClick={() => setMobileSidebarOpen(false)}
+              />
             )}
 
-            {/* Conversation view */}
-            {selectedChat && selectedChat && (
-              <>
-                {/* Header with name + address */}
-                <div className="px-6 py-3 border-b border-border/60 bg-[#0f0f16] flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative">
-                      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xs font-semibold text-white shadow-md">
-                        {selectedChat.name.charAt(0).toUpperCase()}
-                      </div>
-                      <PresenceIndicator
-                        status={selectedChat.status}
-                        className="absolute -bottom-0.5 -right-0.5 scale-90"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">
-                        {selectedChat.name}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground truncate font-mono">
-                        {selectedChat.address}
-                      </div>
-                    </div>
-                  </div>
+            <section
+              className={cn(
+                "flex-1 flex flex-col bg-background/30 transition-opacity duration-300",
+                activeMobileTab === "chats" && "hidden md:flex",
+              )}
+            >
+              {!selectedChat && <ChatEmptyState />}
 
-                  <div className="hidden sm:flex items-center gap-3 text-muted-foreground">
-                    {walletConnected && (
-                      <div className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-[#181822] border border-border/60">
-                        <Wallet className="h-3.5 w-3.5 text-primary" />
-                        <span>Wallet linked</span>
+              {selectedChat && (
+                <>
+                  <header className="px-4 sm:px-5 py-3 border-b border-border/70 bg-card/70 backdrop-blur-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border/80"
+                          onClick={() => setMobileSidebarOpen(true)}
+                          aria-label="Open groups"
+                        >
+                          <Menu className="h-4 w-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="hidden md:inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border/80"
+                          onClick={() => setSelectedChatId(null)}
+                          aria-label="Back to empty state"
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                        </button>
+
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">{selectedChat.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {memberCountByRoom[selectedChat.id] !== undefined
+                              ? `${memberCountByRoom[selectedChat.id]} members`
+                              : "Member count unavailable"}
+                            {` • ${selectedChat.address.slice(0, 8)}...`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setRoomMembersOpen(true)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border/80 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        Members
+                      </button>
+                    </div>
+                  </header>
+
+                  <div
+                    ref={scrollContainerRef}
+                    className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 bg-gradient-to-b from-background/40 to-background"
+                  >
+                    {isLoadingMessages && (
+                      <div className="h-full flex items-center justify-center text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
                       </div>
                     )}
-                    <button className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-[#181822] transition">
-                      <Phone className="h-4 w-4" />
-                    </button>
-                    <button className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-[#181822] transition">
-                      <Video className="h-4 w-4" />
-                    </button>
-                    <button className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-[#181822] transition">
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-3 bg-[#050509]">
-                  {messages.map((message) => {
-                    const isMine = message.author === "me"
-                    return (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          "flex w-full",
-                          isMine ? "justify-end" : "justify-start",
-                        )}
-                      >
+                    {!isLoadingMessages && messages.length === 0 && (
+                      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                        No messages yet. Start the conversation.
+                      </div>
+                    )}
+
+                    {!isLoadingMessages &&
+                      messages.map((message) => (
                         <div
+                          key={message.id}
                           className={cn(
-                            "max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm flex flex-col gap-1",
-                            isMine
-                              ? "bg-[#282834] text-foreground rounded-br-md"
-                              : "bg-[#282834] text-foreground rounded-bl-md",
+                            "max-w-[85%] sm:max-w-[72%] rounded-2xl px-4 py-2.5",
+                            "text-sm shadow-sm",
+                            message.author === "me"
+                              ? "ml-auto bg-primary text-primary-foreground rounded-br-sm"
+                              : "mr-auto bg-card border border-border/70 rounded-bl-sm",
                           )}
                         >
-                          <span className="whitespace-pre-wrap break-words">
-                            {message.text}
-                          </span>
-                          <div className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground/90">
+                          <p className="whitespace-pre-wrap break-words leading-relaxed">{message.text}</p>
+                          <div
+                            className={cn(
+                              "mt-1 flex items-center justify-end gap-1 text-[10px]",
+                              message.author === "me"
+                                ? "text-primary-foreground/80"
+                                : "text-muted-foreground",
+                            )}
+                          >
                             <span>{message.time}</span>
-                            {isMine && (
-                              <span className="inline-flex items-center gap-1">
-                                {(() => {
-                                  const status = getDeliveryStatus(message)
-                                  if (status === "sending") {
-                                    return (
-                                      <Clock className="h-3 w-3 text-muted-foreground/80 animate-pulse" />
-                                    )
-                                  }
-                                  if (status === "sent") {
-                                    return (
-                                      <Check className="h-3 w-3 text-muted-foreground/80" />
-                                    )
-                                  }
-                                  return (
-                                    <CheckCheck
-                                      className={cn(
-                                        "h-3 w-3",
-                                        status === "read"
-                                          ? "text-green-400"
-                                          : "text-muted-foreground/80",
-                                      )}
-                                    />
-                                  )
-                                })()}
-                                <span
-                                  className={cn(
-                                    "text-[10px]",
-                                    getDeliveryStatus(message) === "read"
-                                      ? "text-green-400"
-                                      : "text-muted-foreground/80",
-                                  )}
-                                >
-                                  {(() => {
-                                    const status = getDeliveryStatus(message)
-                                    if (status === "sending") return "Sending"
-                                    if (status === "sent") return "Sent"
-                                    if (status === "delivered") return "Delivered"
-                                    return "Seen"
-                                  })()}
-                                </span>
+                            {message.author === "me" && (
+                              <span aria-label={`Delivery status: ${message.status}`}>
+                                {message.status === "sending" ? "..." : "✓✓"}
                               </span>
                             )}
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      ))}
+                  </div>
 
-                {/* Composer */}
-                <div className="px-4 sm:px-6 py-3 border-t border-border/60 bg-[#0f0f16] flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Type a message"
-                    className="flex-1 rounded-full border border-border/60 bg-[#181822] px-4 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/60 placeholder:text-muted-foreground/70"
+                  <div className="p-3 sm:p-4 border-t border-border/70 bg-card/80 backdrop-blur-sm">
+                    <div className="flex items-end gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        aria-label="Insert emoji"
+                        className="h-10 w-10 shrink-0 rounded-full border border-border/80 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      >
+                        <Smile className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        aria-label="Attach file"
+                        className="h-10 w-10 shrink-0 rounded-full border border-border/80 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </button>
+
+                      <textarea
+                        value={inputMessage}
+                        onChange={(event) => setInputMessage(event.target.value)}
+                        onKeyDown={handleComposerKeyDown}
+                        rows={1}
+                        placeholder="Type a message"
+                        className="flex-1 min-h-10 max-h-32 resize-none rounded-2xl border border-border/80 bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => void handleSendMessage()}
+                        disabled={!inputMessage.trim() || isSending}
+                        aria-label="Send message"
+                        className="h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50"
+                      >
+                        {isSending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <SendHorizontal className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <RoomMembersDialog
+                    roomId={selectedChat.id}
+                    open={roomMembersOpen}
+                    onOpenChange={setRoomMembersOpen}
                   />
-                  <button className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90 transition">
-                    <Send className="h-4 w-4" />
-                  </button>
-                </div>
-              </>
-            )}
-          </section>
+                </>
+              )}
+            </section>
+          </div>
         </div>
+
+        <nav
+          aria-label="Mobile navigation"
+          className="md:hidden fixed inset-x-3 bottom-3 z-30 rounded-2xl border border-border/70 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85 shadow-lg"
+          style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="grid grid-cols-2 gap-1 p-1.5">
+            <button
+              type="button"
+              aria-label="Show groups"
+              aria-pressed={activeMobileTab === "chats"}
+              onClick={() => {
+                setActiveMobileTab("chats");
+                setMobileSidebarOpen(false);
+              }}
+              className={cn(
+                "min-h-12 rounded-xl inline-flex items-center justify-center gap-2 text-sm font-medium transition-colors",
+                activeMobileTab === "chats"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+              )}
+            >
+              <PanelLeft className="h-4 w-4" />
+              Groups
+            </button>
+            <button
+              type="button"
+              aria-label="Show conversation"
+              aria-pressed={activeMobileTab === "conversation"}
+              onClick={() => {
+                setActiveMobileTab("conversation");
+                setMobileSidebarOpen(false);
+              }}
+              className={cn(
+                "min-h-12 rounded-xl inline-flex items-center justify-center gap-2 text-sm font-medium transition-colors",
+                activeMobileTab === "conversation"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+              )}
+            >
+              <MessageSquare className="h-4 w-4" />
+              Chat
+            </button>
+          </div>
+        </nav>
       </main>
 
       <Footer />
     </div>
-  )
+  );
 }

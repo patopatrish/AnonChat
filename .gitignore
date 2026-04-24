@@ -9,6 +9,13 @@
 
 # production
 /build
+/dist
+/package-lock.json
+/package.json
+/pnpm-lock.yaml
+/pnpm-workspace.yaml
+.pnpm-store/
+.nvmrc
 
 # debug
 npm-debug.log*
