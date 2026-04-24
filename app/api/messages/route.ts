@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
+import {
+  checkAndConsumeWalletMessageSlot,
+  formatRateLimitWindow,
+  getWalletRateLimitKey,
+  resolveWalletMessageRatePolicy,
+} from "@/lib/wallet-message-rate-limit"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
@@ -72,6 +78,23 @@ export async function POST(request: NextRequest) {
 
     if (!room_id || !content) {
       return NextResponse.json({ error: "room_id and content are required" }, { status: 400 })
+    }
+
+    const walletKey = getWalletRateLimitKey(user)
+    const policy = resolveWalletMessageRatePolicy(walletKey, room_id)
+    const rate = await checkAndConsumeWalletMessageSlot(walletKey, room_id, policy)
+    if (!rate.allowed) {
+      console.warn(
+        `[wallet-msg-rate-limit] violation limit=${policy.limit} windowSec=${policy.windowSec} walletPrefix=${walletKey.slice(0, 10)} room_id=${room_id}`,
+      )
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          limit: policy.limit,
+          window: formatRateLimitWindow(policy.windowSec),
+        },
+        { status: 429 },
+      )
     }
 
     const { data: membership, error: memberErr } = await supabase
