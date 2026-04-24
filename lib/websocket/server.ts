@@ -249,6 +249,24 @@ export function createWebSocketServer(port: number = 3001) {
             break
           }
 
+          case "message_delivered": {
+            const deliveredRoomId = message.payload.roomId
+            const deliveredMessageId = message.payload.messageId
+
+            // Broadcast status update to the room
+            // In a production app, we would also update the database here
+            broadcastToRoom(deliveredRoomId, {
+              type: "message_status_update",
+              payload: {
+                messageId: deliveredMessageId,
+                status: "delivered",
+                roomId: deliveredRoomId,
+              },
+              timestamp: Date.now(),
+            })
+            break
+          }
+
           case "typing": {
             const typingRoomId = message.payload.roomId
 

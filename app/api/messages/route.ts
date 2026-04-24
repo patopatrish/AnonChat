@@ -62,6 +62,51 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { id, status } = body
+
+    if (!id || !status) {
+      return NextResponse.json({ error: "id and status are required" }, { status: 400 })
+    }
+
+    // Only allow updating to certain statuses
+    if (!["sent", "delivered", "read"].includes(status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 })
+    }
+
+    // Verify message exists and user has access (implicitly via RLS or explicit check)
+    // For simplicity and matching existing patterns, we'll just attempt the update
+    // Supabase RLS should handle permission if configured
+    const { data, error } = await supabase
+      .from("messages")
+      .update({ status })
+      .eq("id", id)
+      .select()
+
+    if (error) throw error
+
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({ message: data[0], success: true })
+  } catch (error) {
+    console.error("[v0] PATCH /api/messages error:", error)
+    return NextResponse.json({ error: "Failed to update message status" }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -128,6 +173,7 @@ export async function POST(request: NextRequest) {
         room_id,
         content,
         is_encrypted: false,
+        status: "sent",
       })
       .select()
 

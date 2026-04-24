@@ -242,6 +242,14 @@ export class WebSocketClient {
     return { success: true }
   }
 
+  markAsDelivered(messageId: string, roomId: string) {
+    this.send({
+      type: "message_delivered",
+      payload: { messageId, roomId },
+      timestamp: Date.now(),
+    })
+  }
+
   notifyTyping(roomId: string) {
     this.send({
       type: "typing",
