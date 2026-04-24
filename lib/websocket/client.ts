@@ -206,7 +206,7 @@ export class WebSocketClient {
 
   joinRoom(roomId: string) {
     this.send({
-      type: "room_join",
+      type: "join_room",
       payload: { roomId },
       timestamp: Date.now(),
     })
