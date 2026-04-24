@@ -116,7 +116,7 @@ export function notifyWebSocketWalletEvent(action: "connect" | "disconnect", wal
  */
 export function getWebSocketStatus() {
   const client = getWebSocketClient()
-  return client.getConnectionState()
+  return client.isConnected()
 }
 
 /**
